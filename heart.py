@@ -22,6 +22,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
+# ---------------------------------------------------------
+# Page setup
+# ---------------------------------------------------------
+
 st.set_page_config(
     page_title="CardioGuard AI",
     page_icon="❤️",
@@ -41,15 +45,12 @@ st.markdown(
         opacity: 0.78;
         margin-bottom: 25px;
     }
-    .metric-card {
+    .section-box {
         padding: 18px;
         border-radius: 18px;
         border: 1px solid rgba(128,128,128,0.25);
         background: rgba(128,128,128,0.08);
-    }
-    .small-note {
-        font-size: 14px;
-        opacity: 0.75;
+        margin-bottom: 20px;
     }
     </style>
     """,
@@ -67,32 +68,84 @@ st.warning(
 )
 
 
+# ---------------------------------------------------------
+# Feature information
+# ---------------------------------------------------------
+
 FEATURE_INFO = {
-    "cp": ["Chest Pain Type", "Very important", "Represents type of chest pain; strongly related to cardiac symptoms."],
-    "trestbps": ["Resting Blood Pressure", "Important", "High resting blood pressure can increase cardiovascular risk."],
-    "chol": ["Serum Cholesterol", "Important", "High cholesterol is a known heart-risk factor."],
-    "fbs": ["Fasting Blood Sugar", "Medium", "Shows whether fasting blood sugar is high."],
-    "restecg": ["Resting Electrocardiogram Result", "Important", "Shows ECG abnormalities while resting."],
-    "thalach": ["Maximum Heart Rate Achieved", "Very important", "Lower exercise heart-rate performance can indicate risk."],
-    "exang": ["Exercise-Induced Angina", "Very important", "Chest pain during exercise is a strong warning signal."],
-    "oldpeak": ["ST Depression Induced by Exercise", "Very important", "ECG stress indicator; higher values often mean higher risk."],
-    "slope": ["Slope of Peak Exercise ST Segment", "Important", "ECG stress-test pattern."],
-    "ca": ["Number of Major Vessels Colored by Fluoroscopy", "Very important", "More affected vessels usually means higher heart risk."],
-    "thal": ["Thalassemia / Thallium Stress Test Result", "Very important", "Stress-test related heart blood-flow indicator."],
+    "cp": [
+        "Chest Pain Type",
+        "Very important",
+        "Represents the type of chest pain. Chest pain pattern is strongly related to cardiac symptoms.",
+    ],
+    "trestbps": [
+        "Resting Blood Pressure",
+        "Important",
+        "Blood pressure while resting. High values can increase cardiovascular risk.",
+    ],
+    "chol": [
+        "Serum Cholesterol",
+        "Important",
+        "Cholesterol level in the blood. High cholesterol can increase heart risk.",
+    ],
+    "fbs": [
+        "Fasting Blood Sugar",
+        "Medium",
+        "Shows whether fasting blood sugar is high.",
+    ],
+    "restecg": [
+        "Resting Electrocardiogram Result",
+        "Important",
+        "ECG result while resting. Abnormal ECG patterns can indicate heart problems.",
+    ],
+    "thalach": [
+        "Maximum Heart Rate Achieved",
+        "Very important",
+        "Maximum heart rate reached during exercise. Lower exercise performance can suggest risk.",
+    ],
+    "exang": [
+        "Exercise-Induced Angina",
+        "Very important",
+        "Chest pain caused by exercise. This is a strong warning signal.",
+    ],
+    "oldpeak": [
+        "ST Depression Induced by Exercise",
+        "Very important",
+        "ECG stress-test value. Higher values often indicate higher heart risk.",
+    ],
+    "slope": [
+        "Slope of Peak Exercise ST Segment",
+        "Important",
+        "ECG stress-test pattern that helps detect abnormal heart response.",
+    ],
+    "ca": [
+        "Number of Major Vessels Colored by Fluoroscopy",
+        "Very important",
+        "Shows affected major blood vessels. More affected vessels usually means higher risk.",
+    ],
+    "thal": [
+        "Thalassemia / Thallium Stress Test Result",
+        "Very important",
+        "Stress-test related heart blood-flow indicator.",
+    ],
 }
 
+
+# ---------------------------------------------------------
+# Data loading and validation
+# ---------------------------------------------------------
 
 @st.cache_data
 def load_local_data(csv_path: str) -> pd.DataFrame:
     path = Path(csv_path)
+
     if not path.exists():
         st.error(
-            f"Could not find {csv_path}. Put heart_dummy_100.csv in the same GitHub folder as this Python file."
+            f"Could not find '{csv_path}'. Put heart_dummy_100.csv in the same GitHub folder as heart.py."
         )
         st.stop()
 
-    df = pd.read_csv(path)
-    return df
+    return pd.read_csv(path)
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -109,20 +162,36 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 def validate_data(df: pd.DataFrame) -> None:
     required_columns = [
-        "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
-        "thalach", "exang", "oldpeak", "slope", "ca", "thal", "target"
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "chol",
+        "fbs",
+        "restecg",
+        "thalach",
+        "exang",
+        "oldpeak",
+        "slope",
+        "ca",
+        "thal",
+        "target",
     ]
 
-    missing = [col for col in required_columns if col not in df.columns]
+    missing_columns = [col for col in required_columns if col not in df.columns]
 
-    if missing:
-        st.error(f"Missing columns in CSV: {missing}")
+    if missing_columns:
+        st.error(f"Missing columns in CSV: {missing_columns}")
         st.stop()
 
     if df["target"].nunique() < 2:
         st.error("The target column must contain both 0 and 1 values.")
         st.stop()
 
+
+# ---------------------------------------------------------
+# AI model training
+# ---------------------------------------------------------
 
 def train_ai(df: pd.DataFrame):
     df = clean_data(df)
@@ -152,12 +221,15 @@ def train_ai(df: pd.DataFrame):
         "Random Forest": Pipeline(
             steps=[
                 ("imputer", SimpleImputer(strategy="median")),
-                ("model", RandomForestClassifier(
-                    n_estimators=300,
-                    max_depth=7,
-                    random_state=42,
-                    class_weight="balanced",
-                )),
+                (
+                    "model",
+                    RandomForestClassifier(
+                        n_estimators=300,
+                        max_depth=7,
+                        random_state=42,
+                        class_weight="balanced",
+                    ),
+                ),
             ]
         ),
         "Gradient Boosting": Pipeline(
@@ -178,15 +250,17 @@ def train_ai(df: pd.DataFrame):
         probabilities = model.predict_proba(X_test)[:, 1]
         predictions = (probabilities >= threshold).astype(int)
 
-        results.append({
-            "model": name,
-            "accuracy": round(accuracy_score(y_test, predictions), 4),
-            "precision": round(precision_score(y_test, predictions, zero_division=0), 4),
-            "recall": round(recall_score(y_test, predictions, zero_division=0), 4),
-            "f1_score": round(f1_score(y_test, predictions, zero_division=0), 4),
-            "roc_auc": round(roc_auc_score(y_test, probabilities), 4),
-            "threshold": threshold,
-        })
+        results.append(
+            {
+                "model": name,
+                "accuracy": round(accuracy_score(y_test, predictions), 4),
+                "precision": round(precision_score(y_test, predictions, zero_division=0), 4),
+                "recall": round(recall_score(y_test, predictions, zero_division=0), 4),
+                "f1_score": round(f1_score(y_test, predictions, zero_division=0), 4),
+                "roc_auc": round(roc_auc_score(y_test, probabilities), 4),
+                "threshold": threshold,
+            }
+        )
 
         trained_models[name] = {
             "model": model,
@@ -205,6 +279,10 @@ def train_ai(df: pd.DataFrame):
 
     return leaderboard, best_model_name, best_model_bundle
 
+
+# ---------------------------------------------------------
+# Prediction and feature importance
+# ---------------------------------------------------------
 
 def predict_risk(model_bundle, patient_data: dict):
     model = model_bundle["model"]
@@ -240,20 +318,36 @@ def get_feature_importance(model_bundle):
     else:
         values = np.zeros(len(features))
 
-    importance_df = pd.DataFrame({
-        "feature": features,
-        "importance": values,
-    }).sort_values("importance", ascending=False)
+    importance_df = pd.DataFrame(
+        {
+            "feature": features,
+            "importance": values,
+        }
+    ).sort_values("importance", ascending=False)
 
     return importance_df
 
+
+def train_and_store_model(df: pd.DataFrame):
+    leaderboard, best_model_name, best_model = train_ai(df)
+
+    st.session_state["leaderboard"] = leaderboard
+    st.session_state["best_model_name"] = best_model_name
+    st.session_state["best_model"] = best_model
+
+    joblib.dump(best_model, "cardioguard_model.joblib")
+
+
+# ---------------------------------------------------------
+# Sidebar
+# ---------------------------------------------------------
 
 st.sidebar.header("⚙️ Controls")
 
 csv_path = st.sidebar.text_input(
     "CSV file path",
     value="heart_dummy_100.csv",
-    help="Keep this CSV file in the same GitHub folder as heart.py",
+    help="Keep this CSV file in the same GitHub folder as heart.py.",
 )
 
 uploaded_file = st.sidebar.file_uploader(
@@ -263,8 +357,12 @@ uploaded_file = st.sidebar.file_uploader(
 
 st.sidebar.divider()
 
-train_button = st.sidebar.button("🚀 Train AI Model", use_container_width=True)
+train_button = st.sidebar.button("🚀 Train / Re-train AI Model", use_container_width=True)
 
+
+# ---------------------------------------------------------
+# Load data
+# ---------------------------------------------------------
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
@@ -275,10 +373,41 @@ df = clean_data(df)
 validate_data(df)
 
 
+# ---------------------------------------------------------
+# Auto-train safely
+# ---------------------------------------------------------
+
+if (
+    train_button
+    or "leaderboard" not in st.session_state
+    or "best_model_name" not in st.session_state
+    or "best_model" not in st.session_state
+):
+    with st.spinner("Training AI model..."):
+        train_and_store_model(df)
+
+
+leaderboard = st.session_state.get("leaderboard")
+best_model_name = st.session_state.get("best_model_name")
+best_model = st.session_state.get("best_model")
+
+if leaderboard is None or best_model_name is None or best_model is None:
+    st.error("Model training did not complete. Click Train / Re-train AI Model again.")
+    st.stop()
+
+
+# ---------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------
+
 tab1, tab2, tab3, tab4 = st.tabs(
     ["📊 Dataset", "🧠 Train Model", "🩺 Predict Risk", "⌚ Live Simulation"]
 )
 
+
+# ---------------------------------------------------------
+# Tab 1: Dataset
+# ---------------------------------------------------------
 
 with tab1:
     st.subheader("Dataset Preview")
@@ -292,6 +421,7 @@ with tab1:
     st.dataframe(df.head(20), use_container_width=True)
 
     st.subheader("Important Medical Features")
+
     feature_table = pd.DataFrame(
         [
             {
@@ -303,25 +433,20 @@ with tab1:
             for key, value in FEATURE_INFO.items()
         ]
     )
+
     st.dataframe(feature_table, use_container_width=True)
 
+    st.info(
+        "The CSV is used as local training data. For a real medical system, this dummy data should be replaced with clinically validated patient or wearable data."
+    )
+
+
+# ---------------------------------------------------------
+# Tab 2: Training
+# ---------------------------------------------------------
 
 with tab2:
     st.subheader("AI Training and Testing")
-
-    if train_button or "best_model" not in st.session_state:
-        with st.spinner("Training Logistic Regression, Random Forest, and Gradient Boosting..."):
-            leaderboard, best_model_name, best_model = train_ai(df)
-
-            st.session_state["leaderboard"] = leaderboard
-            st.session_state["best_model_name"] = best_model_name
-            st.session_state["best_model"] = best_model
-
-            joblib.dump(best_model, "cardioguard_model.joblib")
-
-    leaderboard = st.session_state["leaderboard"]
-    best_model_name = st.session_state["best_model_name"]
-    best_model = st.session_state["best_model"]
 
     st.dataframe(leaderboard, use_container_width=True)
 
@@ -331,30 +456,31 @@ with tab2:
     c3.metric("Model Saved", "cardioguard_model.joblib")
 
     st.subheader("Confusion Matrix")
+
     cm = best_model["confusion_matrix"]
     cm_df = pd.DataFrame(
         cm,
         index=["Actual No Risk", "Actual Risk"],
         columns=["Predicted No Risk", "Predicted Risk"],
     )
+
     st.dataframe(cm_df, use_container_width=True)
 
     st.subheader("Feature Importance")
+
     importance_df = get_feature_importance(best_model)
     st.dataframe(importance_df, use_container_width=True)
     st.bar_chart(importance_df.set_index("feature")["importance"])
 
 
+# ---------------------------------------------------------
+# Tab 3: Prediction
+# ---------------------------------------------------------
+
 with tab3:
     st.subheader("Patient Risk Prediction")
 
-    if "best_model" not in st.session_state:
-        st.info("Train the model first from the sidebar.")
-        st.stop()
-
-    best_model = st.session_state["best_model"]
     features = best_model["features"]
-
     patient_data = {}
 
     st.markdown("Adjust the patient values below. The AI will calculate a risk score.")
@@ -370,13 +496,15 @@ with tab3:
         if minimum == maximum:
             maximum = minimum + 1
 
+        help_text = FEATURE_INFO.get(feature, ["", "", ""])[2]
+
         with layout_cols[index % 3]:
             patient_data[feature] = st.slider(
                 label=feature,
                 min_value=minimum,
                 max_value=maximum,
                 value=median,
-                help=FEATURE_INFO.get(feature, ["", "", ""])[2],
+                help=help_text,
             )
 
     risk_probability, risk_level, emergency_alert = predict_risk(best_model, patient_data)
@@ -398,14 +526,13 @@ with tab3:
         st.success("Low predicted risk.")
 
 
+# ---------------------------------------------------------
+# Tab 4: Live Simulation
+# ---------------------------------------------------------
+
 with tab4:
     st.subheader("Live Wearable Simulation")
 
-    if "best_model" not in st.session_state:
-        st.info("Train the model first from the sidebar.")
-        st.stop()
-
-    best_model = st.session_state["best_model"]
     features = best_model["features"]
 
     st.write(
@@ -446,12 +573,14 @@ with tab4:
 
             risk_probability, risk_level, emergency_alert = predict_risk(best_model, live_patient)
 
-            logs.append({
-                "second": second + 1,
-                "risk_score": round(risk_probability * 100, 2),
-                "risk_level": risk_level,
-                "emergency_alert": emergency_alert,
-            })
+            logs.append(
+                {
+                    "second": second + 1,
+                    "risk_score": round(risk_probability * 100, 2),
+                    "risk_level": risk_level,
+                    "emergency_alert": emergency_alert,
+                }
+            )
 
             logs_df = pd.DataFrame(logs)
 
@@ -474,6 +603,7 @@ with tab4:
         st.dataframe(logs_df, use_container_width=True)
 
         csv = logs_df.to_csv(index=False).encode("utf-8")
+
         st.download_button(
             "Download Simulation Log",
             data=csv,

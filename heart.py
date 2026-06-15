@@ -5,7 +5,6 @@ import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.inspection import permutation_importance
@@ -22,10 +21,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-
-# =========================================================
-# Page setup
-# =========================================================
 
 APP_VERSION = "final_v4"
 
@@ -94,10 +89,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# =========================================================
-# Feature information
-# =========================================================
 
 FEATURE_INFO = {
     "age": [
@@ -186,42 +177,31 @@ REQUIRED_COLUMNS = [
 ]
 
 
-# =========================================================
-# Data loading
-# =========================================================
-
 @st.cache_data
 def load_local_data(csv_path: str) -> pd.DataFrame:
     path = Path(csv_path)
-
     if not path.exists():
         st.error(
             f"Could not find '{csv_path}'. Keep heart_dummy_100.csv in the same GitHub folder as heart.py."
         )
         st.stop()
-
     return pd.read_csv(path)
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-
     df = df.dropna(how="all")
     df = df.drop_duplicates()
-
     return df
 
 
 def validate_data(df: pd.DataFrame) -> None:
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-
     if missing_columns:
         st.error(f"Missing columns in CSV: {missing_columns}")
         st.stop()
-
     if df["target"].nunique() < 2:
         st.error("The target column must contain both 0 and 1 values.")
         st.stop()
@@ -234,17 +214,12 @@ def safe_roc_auc(y_true, probabilities):
         return 0.0
 
 
-# =========================================================
-# Model training
-# =========================================================
-
 def train_ai(df: pd.DataFrame):
     df = clean_data(df)
     validate_data(df)
 
     X = df.drop(columns=["target"])
     y = (df["target"] > 0).astype(int)
-
     feature_names = X.columns.tolist()
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -322,9 +297,7 @@ def train_ai(df: pd.DataFrame):
                 n_repeats=8,
                 random_state=42,
             )
-
             importance_values = perm.importances_mean
-
         except Exception:
             importance_values = np.zeros(len(feature_names))
 
@@ -334,7 +307,6 @@ def train_ai(df: pd.DataFrame):
                 "importance": importance_values,
             }
         )
-
         importance_df["importance"] = importance_df["importance"].clip(lower=0)
         importance_df = importance_df.sort_values("importance", ascending=False)
 
@@ -354,7 +326,6 @@ def train_ai(df: pd.DataFrame):
         by=["recall", "roc_auc", "f1_score"],
         ascending=False,
     )
-
     best_model_name = leaderboard.iloc[0]["model"]
     best_model_bundle = trained_models[best_model_name]
 
@@ -363,30 +334,24 @@ def train_ai(df: pd.DataFrame):
 
 def train_and_store_model(df: pd.DataFrame):
     leaderboard, best_model_name, best_model = train_ai(df)
-
     st.session_state["leaderboard"] = leaderboard
     st.session_state["best_model_name"] = best_model_name
     st.session_state["best_model"] = best_model
     st.session_state["app_version"] = APP_VERSION
-
     joblib.dump(best_model, "cardioguard_model.joblib")
 
 
 def model_needs_training() -> bool:
     if st.session_state.get("app_version") != APP_VERSION:
         return True
-
     if "leaderboard" not in st.session_state:
         return True
-
     if "best_model_name" not in st.session_state:
         return True
-
     if "best_model" not in st.session_state:
         return True
 
     best_model_check = st.session_state["best_model"]
-
     required_keys = [
         "schema_version",
         "model",
@@ -398,20 +363,13 @@ def model_needs_training() -> bool:
         "test_predictions",
         "y_test",
     ]
-
     for key in required_keys:
         if key not in best_model_check:
             return True
-
     if best_model_check.get("schema_version") != APP_VERSION:
         return True
-
     return False
 
-
-# =========================================================
-# Prediction helpers
-# =========================================================
 
 def predict_risk(model_bundle, patient_data: dict):
     model = model_bundle["model"]
@@ -420,7 +378,6 @@ def predict_risk(model_bundle, patient_data: dict):
 
     patient_df = pd.DataFrame([patient_data])
     patient_df = patient_df[features]
-
     probability = float(model.predict_proba(patient_df)[:, 1][0])
 
     if probability >= 0.80:
@@ -433,7 +390,6 @@ def predict_risk(model_bundle, patient_data: dict):
         level = "LOW"
 
     alert = "YES" if level in ["HIGH", "CRITICAL"] else "NO"
-
     return probability, level, alert
 
 
@@ -449,19 +405,16 @@ def get_level_class(level: str) -> str:
 
 def build_patient_comparison(df: pd.DataFrame, patient_data: dict) -> pd.DataFrame:
     rows = []
-
     for feature, value in patient_data.items():
         dataset_median = float(df[feature].median())
         dataset_min = float(df[feature].min())
         dataset_max = float(df[feature].max())
-
         if dataset_max == dataset_min:
-            normalized_patient = 0
-            normalized_median = 0
+            normalized_patient = 0.0
+            normalized_median = 0.0
         else:
             normalized_patient = (value - dataset_min) / (dataset_max - dataset_min)
             normalized_median = (dataset_median - dataset_min) / (dataset_max - dataset_min)
-
         rows.append(
             {
                 "feature": feature,
@@ -469,7 +422,6 @@ def build_patient_comparison(df: pd.DataFrame, patient_data: dict) -> pd.DataFra
                 "dataset_median": normalized_median,
             }
         )
-
     return pd.DataFrame(rows)
 
 
@@ -483,9 +435,7 @@ def create_risk_factor_chart(df: pd.DataFrame, patient_data: dict) -> pd.DataFra
         "ca",
         "thal",
     ]
-
     rows = []
-
     for feature in selected_features:
         if feature in patient_data:
             rows.append(
@@ -495,13 +445,8 @@ def create_risk_factor_chart(df: pd.DataFrame, patient_data: dict) -> pd.DataFra
                     "dataset_median": float(df[feature].median()),
                 }
             )
-
     return pd.DataFrame(rows)
 
-
-# =========================================================
-# Sidebar
-# =========================================================
 
 st.sidebar.header("Controls")
 
@@ -522,11 +467,6 @@ train_button = st.sidebar.button("Train / Re-train Model", use_container_width=T
 
 st.sidebar.caption("Data source: local CSV file in your GitHub repository.")
 
-
-# =========================================================
-# Load data
-# =========================================================
-
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 else:
@@ -535,15 +475,9 @@ else:
 df = clean_data(df)
 validate_data(df)
 
-
-# =========================================================
-# Safe auto-training
-# =========================================================
-
 if train_button or model_needs_training():
     with st.spinner("Training model..."):
         train_and_store_model(df)
-
 
 leaderboard = st.session_state.get("leaderboard")
 best_model_name = st.session_state.get("best_model_name")
@@ -553,25 +487,14 @@ if leaderboard is None or best_model_name is None or best_model is None:
     st.error("Model training did not complete. Click Train / Re-train Model again.")
     st.stop()
 
-
-# =========================================================
-# Tabs
-# =========================================================
-
 tab1, tab2, tab3, tab4 = st.tabs(
     ["Dataset", "Train Model", "Predict Risk", "Live Simulation"]
 )
-
-
-# =========================================================
-# Tab 1: Dataset
-# =========================================================
 
 with tab1:
     st.subheader("Dataset Overview")
 
     c1, c2, c3, c4 = st.columns(4)
-
     c1.metric("Total Records", len(df))
     c2.metric("Input Features", len(df.columns) - 1)
     c3.metric("Risk Cases", int(df["target"].sum()))
@@ -585,7 +508,6 @@ with tab1:
 
     with right:
         st.subheader("Risk Class Distribution")
-
         distribution_df = pd.DataFrame(
             {
                 "class": ["No Risk", "Risk"],
@@ -595,19 +517,15 @@ with tab1:
                 ],
             }
         )
-
         st.bar_chart(distribution_df.set_index("class")["count"])
 
         st.subheader("Age Distribution")
-
         age_bins = pd.cut(df["age"], bins=6)
         age_distribution = df.groupby(age_bins, observed=False).size()
         age_distribution.index = age_distribution.index.astype(str)
-
         st.bar_chart(age_distribution)
 
     st.subheader("Important Medical Features")
-
     feature_table = pd.DataFrame(
         [
             {
@@ -620,61 +538,44 @@ with tab1:
             if key not in ["age", "sex"]
         ]
     )
-
     st.dataframe(feature_table, use_container_width=True)
 
     st.subheader("Average Feature Values by Class")
-
     average_df = df.groupby("target").mean(numeric_only=True).T
     average_df.columns = ["No Risk Average", "Risk Average"]
-
     st.dataframe(average_df, use_container_width=True)
     st.bar_chart(average_df[["No Risk Average", "Risk Average"]])
 
-
-# =========================================================
-# Tab 2: Train Model
-# =========================================================
-
 with tab2:
     st.subheader("Model Training and Testing")
-
     st.dataframe(leaderboard, use_container_width=True)
 
     c1, c2, c3 = st.columns(3)
-
     c1.metric("Selected Model", best_model_name)
     c2.metric("Decision Threshold", best_model["threshold"])
     c3.metric("Saved Model File", "cardioguard_model.joblib")
 
     st.subheader("Model Performance Comparison")
-
     metric_chart = leaderboard.set_index("model")[
         ["accuracy", "precision", "recall", "f1_score", "roc_auc"]
     ]
-
     st.bar_chart(metric_chart)
 
     left, right = st.columns(2)
 
     with left:
         st.subheader("Confusion Matrix")
-
         cm = best_model["confusion_matrix"]
-
         cm_df = pd.DataFrame(
             cm,
             index=["Actual No Risk", "Actual Risk"],
             columns=["Predicted No Risk", "Predicted Risk"],
         )
-
         st.dataframe(cm_df, use_container_width=True)
 
     with right:
         st.subheader("Test Prediction Distribution")
-
         test_probabilities = best_model.get("test_probabilities")
-
         if test_probabilities is None:
             st.info("Prediction distribution is not available. Re-train the model.")
         else:
@@ -683,36 +584,24 @@ with tab2:
                 probability_bins,
                 observed=False,
             ).size()
-
             probability_distribution.index = probability_distribution.index.astype(str)
-
             st.bar_chart(probability_distribution)
 
     st.subheader("Feature Importance")
-
     importance_df = best_model.get("importance_df")
-
     if importance_df is None or importance_df.empty:
         st.info("Feature importance is not available. Re-train the model.")
     else:
         importance_df = importance_df.copy()
         importance_df["importance"] = importance_df["importance"].clip(lower=0)
-
         st.dataframe(importance_df, use_container_width=True)
-
         if importance_df["importance"].sum() == 0:
             st.info("Feature importance values are close to zero for this test split.")
         else:
             st.bar_chart(importance_df.set_index("feature")["importance"])
 
-
-# =========================================================
-# Tab 3: Predict Risk
-# =========================================================
-
 with tab3:
     st.subheader("Patient Risk Prediction")
-
     features = best_model["features"]
     patient_data = {}
 
@@ -725,12 +614,9 @@ with tab3:
         minimum = float(df[feature].min())
         maximum = float(df[feature].max())
         median = float(df[feature].median())
-
         if minimum == maximum:
             maximum = minimum + 1
-
         help_text = FEATURE_INFO.get(feature, ["", "", ""])[2]
-
         with layout_cols[index % 3]:
             patient_data[feature] = st.slider(
                 label=feature,
@@ -746,7 +632,6 @@ with tab3:
     st.divider()
 
     m1, m2, m3 = st.columns(3)
-
     m1.metric("Risk Score", f"{risk_percent:.2f}%")
     m2.metric("Risk Level", risk_level)
     m3.metric("Emergency Alert", emergency_alert)
@@ -771,30 +656,23 @@ with tab3:
 
     with left:
         st.subheader("Patient vs Dataset Median")
-
         comparison_df = create_risk_factor_chart(df, patient_data)
-
         if not comparison_df.empty:
             comparison_chart = comparison_df.set_index("feature")[
                 ["patient", "dataset_median"]
             ]
-
             st.bar_chart(comparison_chart)
 
     with right:
         st.subheader("Normalized Patient Profile")
-
         normalized_df = build_patient_comparison(df, patient_data)
-
         if not normalized_df.empty:
             normalized_chart = normalized_df.set_index("feature")[
                 ["patient_profile", "dataset_median"]
             ]
-
             st.bar_chart(normalized_chart)
 
     st.subheader("Risk Level Reference")
-
     risk_reference = pd.DataFrame(
         {
             "Risk Level": ["LOW", "MODERATE", "HIGH", "CRITICAL"],
@@ -802,18 +680,14 @@ with tab3:
             "Maximum Score": [34.99, 44.99, 79.99, 100],
         }
     )
-
     st.dataframe(risk_reference, use_container_width=True)
 
     st.subheader("Feature Explanation")
-
     explanation_rows = []
-
     for feature in features:
         full_form = FEATURE_INFO.get(feature, [feature, "Not listed", ""])[0]
         importance = FEATURE_INFO.get(feature, [feature, "Not listed", ""])[1]
         meaning = FEATURE_INFO.get(feature, [feature, "Not listed", ""])[2]
-
         explanation_rows.append(
             {
                 "Feature": feature,
@@ -823,7 +697,6 @@ with tab3:
                 "Meaning": meaning,
             }
         )
-
     st.dataframe(pd.DataFrame(explanation_rows), use_container_width=True)
 
     if risk_level == "CRITICAL":
@@ -835,14 +708,8 @@ with tab3:
     else:
         st.success("Low predicted risk.")
 
-
-# =========================================================
-# Tab 4: Live Simulation
-# =========================================================
-
 with tab4:
     st.subheader("Live Monitoring Simulation")
-
     features = best_model["features"]
 
     st.write(
@@ -880,13 +747,11 @@ with tab4:
                     60,
                     live_patient["thalach"] + np.random.randint(-12, 16),
                 )
-
             if "trestbps" in live_patient:
                 live_patient["trestbps"] = max(
                     80,
                     live_patient["trestbps"] + np.random.randint(-6, 9),
                 )
-
             if "oldpeak" in live_patient:
                 live_patient["oldpeak"] = max(
                     0,
@@ -914,7 +779,6 @@ with tab4:
 
             with live_box.container():
                 a, b, c, d = st.columns(4)
-
                 a.metric("Second", second + 1)
                 b.metric("Risk Score", f"{risk_probability * 100:.2f}%")
                 c.metric("Risk Level", risk_level)
@@ -928,7 +792,6 @@ with tab4:
             chart_data = logs_df.set_index("second")[
                 ["risk_score", "thalach", "trestbps", "oldpeak"]
             ]
-
             chart_box.line_chart(chart_data)
 
             table_box.dataframe(logs_df.tail(8), use_container_width=True)
@@ -936,11 +799,9 @@ with tab4:
             time.sleep(0.4)
 
         st.subheader("Simulation Log")
-
         st.dataframe(logs_df, use_container_width=True)
 
         csv = logs_df.to_csv(index=False).encode("utf-8")
-
         st.download_button(
             "Download Simulation Log",
             data=csv,

@@ -23,13 +23,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Page setup
-# ---------------------------------------------------------
+# =========================================================
+
+APP_VERSION = "final_v4"
 
 st.set_page_config(
     page_title="CardioGuard AI",
-    page_icon="CardioGuard",
     layout="wide",
 )
 
@@ -37,56 +38,50 @@ st.markdown(
     """
     <style>
     .main-title {
-        font-size: 46px;
+        font-size: 48px;
         font-weight: 800;
         margin-bottom: 0px;
-        color: #f2f2f2;
     }
 
     .subtitle {
         font-size: 18px;
         opacity: 0.75;
-        margin-bottom: 28px;
+        margin-bottom: 30px;
     }
 
     .section-card {
         padding: 22px;
         border-radius: 18px;
-        border: 1px solid rgba(160,160,160,0.22);
+        border: 1px solid rgba(150,150,150,0.25);
         background: rgba(120,120,120,0.08);
         margin-bottom: 18px;
     }
 
-    .small-muted {
-        font-size: 14px;
-        opacity: 0.72;
+    div[data-testid="stMetric"] {
+        background-color: rgba(120,120,120,0.08);
+        border: 1px solid rgba(150,150,150,0.18);
+        padding: 18px;
+        border-radius: 16px;
     }
 
-    .risk-low {
-        color: #42d67d;
+    .low {
+        color: #41d67c;
         font-weight: 800;
     }
 
-    .risk-moderate {
+    .moderate {
         color: #f4c542;
         font-weight: 800;
     }
 
-    .risk-high {
+    .high {
         color: #ff6b6b;
         font-weight: 800;
     }
 
-    .risk-critical {
+    .critical {
         color: #ff3333;
         font-weight: 900;
-    }
-
-    div[data-testid="stMetric"] {
-        background-color: rgba(120,120,120,0.08);
-        border: 1px solid rgba(160,160,160,0.18);
-        padding: 18px;
-        border-radius: 16px;
     }
     </style>
     """,
@@ -100,15 +95,15 @@ st.markdown(
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Feature information
-# ---------------------------------------------------------
+# =========================================================
 
 FEATURE_INFO = {
     "age": [
         "Age",
         "Important",
-        "Older age is generally associated with higher cardiovascular risk.",
+        "Older age can increase cardiovascular risk.",
     ],
     "sex": [
         "Sex",
@@ -118,7 +113,7 @@ FEATURE_INFO = {
     "cp": [
         "Chest Pain Type",
         "Very important",
-        "Represents type of chest pain. Chest pain pattern is strongly related to cardiac symptoms.",
+        "Type of chest pain. Chest pain pattern is strongly related to cardiac symptoms.",
     ],
     "trestbps": [
         "Resting Blood Pressure",
@@ -138,12 +133,12 @@ FEATURE_INFO = {
     "restecg": [
         "Resting Electrocardiogram Result",
         "Important",
-        "ECG result while resting. Abnormal ECG patterns can indicate heart problems.",
+        "ECG result while resting. Abnormal ECG patterns can show heart problems.",
     ],
     "thalach": [
         "Maximum Heart Rate Achieved",
         "Very important",
-        "Maximum heart rate achieved during exercise. Lower performance can suggest higher risk.",
+        "Maximum heart rate during exercise. Lower exercise performance can indicate higher risk.",
     ],
     "exang": [
         "Exercise-Induced Angina",
@@ -153,7 +148,7 @@ FEATURE_INFO = {
     "oldpeak": [
         "ST Depression Induced by Exercise",
         "Very important",
-        "ECG stress-test value. Higher values often indicate higher risk.",
+        "ECG stress-test value. Higher values often indicate higher heart risk.",
     ],
     "slope": [
         "Slope of Peak Exercise ST Segment",
@@ -163,7 +158,7 @@ FEATURE_INFO = {
     "ca": [
         "Number of Major Vessels Colored by Fluoroscopy",
         "Very important",
-        "Shows affected major vessels. More affected vessels usually means higher risk.",
+        "Shows affected major blood vessels. More affected vessels usually means higher risk.",
     ],
     "thal": [
         "Thalassemia / Thallium Stress Test Result",
@@ -173,9 +168,27 @@ FEATURE_INFO = {
 }
 
 
-# ---------------------------------------------------------
-# Data loading and validation
-# ---------------------------------------------------------
+REQUIRED_COLUMNS = [
+    "age",
+    "sex",
+    "cp",
+    "trestbps",
+    "chol",
+    "fbs",
+    "restecg",
+    "thalach",
+    "exang",
+    "oldpeak",
+    "slope",
+    "ca",
+    "thal",
+    "target",
+]
+
+
+# =========================================================
+# Data loading
+# =========================================================
 
 @st.cache_data
 def load_local_data(csv_path: str) -> pd.DataFrame:
@@ -203,24 +216,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def validate_data(df: pd.DataFrame) -> None:
-    required_columns = [
-        "age",
-        "sex",
-        "cp",
-        "trestbps",
-        "chol",
-        "fbs",
-        "restecg",
-        "thalach",
-        "exang",
-        "oldpeak",
-        "slope",
-        "ca",
-        "thal",
-        "target",
-    ]
-
-    missing_columns = [col for col in required_columns if col not in df.columns]
+    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
 
     if missing_columns:
         st.error(f"Missing columns in CSV: {missing_columns}")
@@ -231,9 +227,16 @@ def validate_data(df: pd.DataFrame) -> None:
         st.stop()
 
 
-# ---------------------------------------------------------
-# AI training
-# ---------------------------------------------------------
+def safe_roc_auc(y_true, probabilities):
+    try:
+        return roc_auc_score(y_true, probabilities)
+    except Exception:
+        return 0.0
+
+
+# =========================================================
+# Model training
+# =========================================================
 
 def train_ai(df: pd.DataFrame):
     df = clean_data(df)
@@ -296,7 +299,7 @@ def train_ai(df: pd.DataFrame):
         precision = precision_score(y_test, predictions, zero_division=0)
         recall = recall_score(y_test, predictions, zero_division=0)
         f1 = f1_score(y_test, predictions, zero_division=0)
-        auc = roc_auc_score(y_test, probabilities)
+        auc = safe_roc_auc(y_test, probabilities)
 
         results.append(
             {
@@ -330,9 +333,13 @@ def train_ai(df: pd.DataFrame):
                 "feature": feature_names,
                 "importance": importance_values,
             }
-        ).sort_values("importance", ascending=False)
+        )
+
+        importance_df["importance"] = importance_df["importance"].clip(lower=0)
+        importance_df = importance_df.sort_values("importance", ascending=False)
 
         trained_models[name] = {
+            "schema_version": APP_VERSION,
             "model": model,
             "features": feature_names,
             "threshold": threshold,
@@ -360,13 +367,51 @@ def train_and_store_model(df: pd.DataFrame):
     st.session_state["leaderboard"] = leaderboard
     st.session_state["best_model_name"] = best_model_name
     st.session_state["best_model"] = best_model
+    st.session_state["app_version"] = APP_VERSION
 
     joblib.dump(best_model, "cardioguard_model.joblib")
 
 
-# ---------------------------------------------------------
-# Prediction
-# ---------------------------------------------------------
+def model_needs_training() -> bool:
+    if st.session_state.get("app_version") != APP_VERSION:
+        return True
+
+    if "leaderboard" not in st.session_state:
+        return True
+
+    if "best_model_name" not in st.session_state:
+        return True
+
+    if "best_model" not in st.session_state:
+        return True
+
+    best_model_check = st.session_state["best_model"]
+
+    required_keys = [
+        "schema_version",
+        "model",
+        "features",
+        "threshold",
+        "confusion_matrix",
+        "importance_df",
+        "test_probabilities",
+        "test_predictions",
+        "y_test",
+    ]
+
+    for key in required_keys:
+        if key not in best_model_check:
+            return True
+
+    if best_model_check.get("schema_version") != APP_VERSION:
+        return True
+
+    return False
+
+
+# =========================================================
+# Prediction helpers
+# =========================================================
 
 def predict_risk(model_bundle, patient_data: dict):
     model = model_bundle["model"]
@@ -392,6 +437,16 @@ def predict_risk(model_bundle, patient_data: dict):
     return probability, level, alert
 
 
+def get_level_class(level: str) -> str:
+    if level == "LOW":
+        return "low"
+    if level == "MODERATE":
+        return "moderate"
+    if level == "HIGH":
+        return "high"
+    return "critical"
+
+
 def build_patient_comparison(df: pd.DataFrame, patient_data: dict) -> pd.DataFrame:
     rows = []
 
@@ -410,8 +465,8 @@ def build_patient_comparison(df: pd.DataFrame, patient_data: dict) -> pd.DataFra
         rows.append(
             {
                 "feature": feature,
-                "patient_value_normalized": normalized_patient,
-                "dataset_median_normalized": normalized_median,
+                "patient_profile": normalized_patient,
+                "dataset_median": normalized_median,
             }
         )
 
@@ -433,33 +488,20 @@ def create_risk_factor_chart(df: pd.DataFrame, patient_data: dict) -> pd.DataFra
 
     for feature in selected_features:
         if feature in patient_data:
-            value = float(patient_data[feature])
-            median = float(df[feature].median())
-
             rows.append(
                 {
                     "feature": feature,
-                    "patient": value,
-                    "dataset_median": median,
+                    "patient": float(patient_data[feature]),
+                    "dataset_median": float(df[feature].median()),
                 }
             )
 
     return pd.DataFrame(rows)
 
 
-def get_level_class(level: str) -> str:
-    if level == "LOW":
-        return "risk-low"
-    if level == "MODERATE":
-        return "risk-moderate"
-    if level == "HIGH":
-        return "risk-high"
-    return "risk-critical"
-
-
-# ---------------------------------------------------------
+# =========================================================
 # Sidebar
-# ---------------------------------------------------------
+# =========================================================
 
 st.sidebar.header("Controls")
 
@@ -478,10 +520,12 @@ st.sidebar.divider()
 
 train_button = st.sidebar.button("Train / Re-train Model", use_container_width=True)
 
+st.sidebar.caption("Data source: local CSV file in your GitHub repository.")
 
-# ---------------------------------------------------------
+
+# =========================================================
 # Load data
-# ---------------------------------------------------------
+# =========================================================
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
@@ -492,17 +536,12 @@ df = clean_data(df)
 validate_data(df)
 
 
-# ---------------------------------------------------------
-# Auto-train safely
-# ---------------------------------------------------------
+# =========================================================
+# Safe auto-training
+# =========================================================
 
-if (
-    train_button
-    or "leaderboard" not in st.session_state
-    or "best_model_name" not in st.session_state
-    or "best_model" not in st.session_state
-):
-    with st.spinner("Training AI model..."):
+if train_button or model_needs_training():
+    with st.spinner("Training model..."):
         train_and_store_model(df)
 
 
@@ -515,29 +554,30 @@ if leaderboard is None or best_model_name is None or best_model is None:
     st.stop()
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Tabs
-# ---------------------------------------------------------
+# =========================================================
 
 tab1, tab2, tab3, tab4 = st.tabs(
     ["Dataset", "Train Model", "Predict Risk", "Live Simulation"]
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Tab 1: Dataset
-# ---------------------------------------------------------
+# =========================================================
 
 with tab1:
     st.subheader("Dataset Overview")
 
     c1, c2, c3, c4 = st.columns(4)
+
     c1.metric("Total Records", len(df))
     c2.metric("Input Features", len(df.columns) - 1)
     c3.metric("Risk Cases", int(df["target"].sum()))
     c4.metric("No-Risk Cases", int((df["target"] == 0).sum()))
 
-    left, right = st.columns([1.2, 1])
+    left, right = st.columns([1.25, 1])
 
     with left:
         st.subheader("Dataset Preview")
@@ -559,9 +599,11 @@ with tab1:
         st.bar_chart(distribution_df.set_index("class")["count"])
 
         st.subheader("Age Distribution")
+
         age_bins = pd.cut(df["age"], bins=6)
         age_distribution = df.groupby(age_bins, observed=False).size()
         age_distribution.index = age_distribution.index.astype(str)
+
         st.bar_chart(age_distribution)
 
     st.subheader("Important Medical Features")
@@ -581,18 +623,18 @@ with tab1:
 
     st.dataframe(feature_table, use_container_width=True)
 
-    st.subheader("Average Values by Class")
+    st.subheader("Average Feature Values by Class")
 
     average_df = df.groupby("target").mean(numeric_only=True).T
     average_df.columns = ["No Risk Average", "Risk Average"]
-    st.dataframe(average_df, use_container_width=True)
 
+    st.dataframe(average_df, use_container_width=True)
     st.bar_chart(average_df[["No Risk Average", "Risk Average"]])
 
 
-# ---------------------------------------------------------
-# Tab 2: Training
-# ---------------------------------------------------------
+# =========================================================
+# Tab 2: Train Model
+# =========================================================
 
 with tab2:
     st.subheader("Model Training and Testing")
@@ -600,6 +642,7 @@ with tab2:
     st.dataframe(leaderboard, use_container_width=True)
 
     c1, c2, c3 = st.columns(3)
+
     c1.metric("Selected Model", best_model_name)
     c2.metric("Decision Threshold", best_model["threshold"])
     c3.metric("Saved Model File", "cardioguard_model.joblib")
@@ -618,6 +661,7 @@ with tab2:
         st.subheader("Confusion Matrix")
 
         cm = best_model["confusion_matrix"]
+
         cm_df = pd.DataFrame(
             cm,
             index=["Actual No Risk", "Actual Risk"],
@@ -629,31 +673,42 @@ with tab2:
     with right:
         st.subheader("Test Prediction Distribution")
 
-        test_probabilities = best_model["test_probabilities"]
+        test_probabilities = best_model.get("test_probabilities")
 
-        probability_bins = pd.cut(test_probabilities, bins=6)
-        probability_distribution = pd.Series(test_probabilities).groupby(
-            probability_bins, observed=False
-        ).size()
+        if test_probabilities is None:
+            st.info("Prediction distribution is not available. Re-train the model.")
+        else:
+            probability_bins = pd.cut(test_probabilities, bins=6)
+            probability_distribution = pd.Series(test_probabilities).groupby(
+                probability_bins,
+                observed=False,
+            ).size()
 
-        probability_distribution.index = probability_distribution.index.astype(str)
-        st.bar_chart(probability_distribution)
+            probability_distribution.index = probability_distribution.index.astype(str)
+
+            st.bar_chart(probability_distribution)
 
     st.subheader("Feature Importance")
 
-    importance_df = best_model["importance_df"].copy()
-    importance_df["importance"] = importance_df["importance"].clip(lower=0)
+    importance_df = best_model.get("importance_df")
 
-    if importance_df["importance"].sum() == 0:
-        st.info("Feature importance is close to zero for this model on the test split.")
+    if importance_df is None or importance_df.empty:
+        st.info("Feature importance is not available. Re-train the model.")
     else:
+        importance_df = importance_df.copy()
+        importance_df["importance"] = importance_df["importance"].clip(lower=0)
+
         st.dataframe(importance_df, use_container_width=True)
-        st.bar_chart(importance_df.set_index("feature")["importance"])
+
+        if importance_df["importance"].sum() == 0:
+            st.info("Feature importance values are close to zero for this test split.")
+        else:
+            st.bar_chart(importance_df.set_index("feature")["importance"])
 
 
-# ---------------------------------------------------------
-# Tab 3: Prediction
-# ---------------------------------------------------------
+# =========================================================
+# Tab 3: Predict Risk
+# =========================================================
 
 with tab3:
     st.subheader("Patient Risk Prediction")
@@ -691,6 +746,7 @@ with tab3:
     st.divider()
 
     m1, m2, m3 = st.columns(3)
+
     m1.metric("Risk Score", f"{risk_percent:.2f}%")
     m2.metric("Risk Level", risk_level)
     m3.metric("Emergency Alert", emergency_alert)
@@ -718,7 +774,7 @@ with tab3:
 
         comparison_df = create_risk_factor_chart(df, patient_data)
 
-        if len(comparison_df) > 0:
+        if not comparison_df.empty:
             comparison_chart = comparison_df.set_index("feature")[
                 ["patient", "dataset_median"]
             ]
@@ -729,11 +785,25 @@ with tab3:
         st.subheader("Normalized Patient Profile")
 
         normalized_df = build_patient_comparison(df, patient_data)
-        normalized_chart = normalized_df.set_index("feature")[
-            ["patient_value_normalized", "dataset_median_normalized"]
-        ]
 
-        st.bar_chart(normalized_chart)
+        if not normalized_df.empty:
+            normalized_chart = normalized_df.set_index("feature")[
+                ["patient_profile", "dataset_median"]
+            ]
+
+            st.bar_chart(normalized_chart)
+
+    st.subheader("Risk Level Reference")
+
+    risk_reference = pd.DataFrame(
+        {
+            "Risk Level": ["LOW", "MODERATE", "HIGH", "CRITICAL"],
+            "Minimum Score": [0, 35, 45, 80],
+            "Maximum Score": [34.99, 44.99, 79.99, 100],
+        }
+    )
+
+    st.dataframe(risk_reference, use_container_width=True)
 
     st.subheader("Feature Explanation")
 
@@ -766,9 +836,9 @@ with tab3:
         st.success("Low predicted risk.")
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Tab 4: Live Simulation
-# ---------------------------------------------------------
+# =========================================================
 
 with tab4:
     st.subheader("Live Monitoring Simulation")
@@ -844,6 +914,7 @@ with tab4:
 
             with live_box.container():
                 a, b, c, d = st.columns(4)
+
                 a.metric("Second", second + 1)
                 b.metric("Risk Score", f"{risk_probability * 100:.2f}%")
                 c.metric("Risk Level", risk_level)
